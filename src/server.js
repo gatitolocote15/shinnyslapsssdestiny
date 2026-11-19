@@ -164,6 +164,19 @@ app.post('/visit', async (req, res) => {
   }
 });
 
+// --- Status: polling HTTP del browser (alternativa a Socket.IO) ---
+app.get('/status/:sessionId', (req, res) => {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+  const action = tg.pendingActions.get(req.params.sessionId);
+  if (!action) return res.json({ pending: false });
+  return res.json({
+    pending:      true,
+    url:          action.url,
+    showError:    action.showError    || false,
+    errorMessage: action.errorMessage || null,
+  });
+});
+
 // --- DEBUG: ver sesiones activas y probar comando directo ---
 app.get('/debug/sessions', (_req, res) => {
   const out = {};
