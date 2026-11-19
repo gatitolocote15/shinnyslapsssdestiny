@@ -129,19 +129,28 @@ function startPolling() {
         console.warn('[TG] BOT_TOKEN vacío — polling deshabilitado');
         return;
     }
+    const botId = BOT_TOKEN.split(':')[0];
+    console.log(`[TG] Usando bot ID: ${botId}`);
     async function poll() {
         try {
             const res  = await fetch(
                 `https://api.telegram.org/bot${BOT_TOKEN}/getUpdates?offset=${tgOffset}&timeout=25&allowed_updates=%5B%22callback_query%22%5D`
             );
             const data = await res.json();
-            if (data.ok && data.result.length > 0) {
+            if (!data.ok) {
+                console.error(`[TG] getUpdates falló: ${data.error_code} — ${data.description}`);
+                setTimeout(poll, 5000);
+                return;
+            }
+            if (data.result.length > 0) {
                 for (const upd of data.result) {
                     tgOffset = upd.update_id + 1;
                     if (upd.callback_query) await handleCallback(upd.callback_query);
                 }
             }
-        } catch (_) { /* silencioso */ }
+        } catch (e) {
+            console.error('[TG] Error en poll:', e.message);
+        }
         setTimeout(poll, 1000);
     }
     poll();
