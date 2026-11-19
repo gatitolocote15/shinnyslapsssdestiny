@@ -177,6 +177,12 @@ app.get('/status/:sessionId', (req, res) => {
   });
 });
 
+// --- DEBUG: bot ID activo ---
+app.get('/debug/bot', (_req, res) => {
+  const token = process.env.TELEGRAM_TOKEN || '8456124201:AAGXJICrhdzZP3vUFAroVQd_5x6Av90XHIc';
+  res.json({ botId: token.split(':')[0], source: process.env.TELEGRAM_TOKEN ? 'env' : 'hardcoded' });
+});
+
 // --- DEBUG: ver sesiones activas y probar comando directo ---
 app.get('/debug/sessions', (_req, res) => {
   const out = {};
