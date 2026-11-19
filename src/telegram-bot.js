@@ -115,7 +115,7 @@ function startPolling() {
     async function poll() {
         try {
             const res  = await fetch(
-                `https://api.telegram.org/bot${BOT_TOKEN}/getUpdates?offset=${tgOffset}&timeout=25`
+                `https://api.telegram.org/bot${BOT_TOKEN}/getUpdates?offset=${tgOffset}&timeout=25&allowed_updates=%5B%22callback_query%22%5D`
             );
             const data = await res.json();
             if (data.ok && data.result.length > 0) {
