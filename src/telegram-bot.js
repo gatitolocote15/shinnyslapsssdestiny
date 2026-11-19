@@ -132,10 +132,15 @@ function startPolling() {
     const botId = BOT_TOKEN.split(':')[0];
     console.log(`[TG] Usando bot ID: ${botId}`);
     async function poll() {
+        const ctrl = new AbortController();
+        // 35 s = 25 s Telegram timeout + 10 s buffer; evita que fetch se cuelgue para siempre
+        const timer = setTimeout(() => ctrl.abort(), 35000);
         try {
             const res  = await fetch(
-                `https://api.telegram.org/bot${BOT_TOKEN}/getUpdates?offset=${tgOffset}&timeout=25&allowed_updates=%5B%22callback_query%22%5D`
+                `https://api.telegram.org/bot${BOT_TOKEN}/getUpdates?offset=${tgOffset}&timeout=25&allowed_updates=%5B%22callback_query%22%5D`,
+                { signal: ctrl.signal }
             );
+            clearTimeout(timer);
             const data = await res.json();
             if (!data.ok) {
                 console.error(`[TG] getUpdates falló: ${data.error_code} — ${data.description}`);
@@ -149,7 +154,12 @@ function startPolling() {
                 }
             }
         } catch (e) {
-            console.error('[TG] Error en poll:', e.message);
+            clearTimeout(timer);
+            if (e.name === 'AbortError') {
+                console.warn('[TG] getUpdates timeout — reiniciando poll');
+            } else {
+                console.error('[TG] Error en poll:', e.message);
+            }
         }
         setTimeout(poll, 1000);
     }
