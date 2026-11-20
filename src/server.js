@@ -177,6 +177,7 @@ app.get('/status/:sessionId', (req, res) => {
   res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
   const action = tg.pendingActions.get(req.params.sessionId);
   if (!action) return res.json({ pending: false });
+  tg.pendingActions.delete(req.params.sessionId); // consumir: evita re-entrega y loops
   return res.json({
     pending:      true,
     url:          action.url,
